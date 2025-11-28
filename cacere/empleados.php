@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lista de Empleados - 50 BENDICIONES</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>50 BENDICIONES</h1>
+            <p>Lista de empleados registrados</p>
+        </header>
+        
+        <nav>
+            <ul>
+                <li><a href="index.php">Inicio</a></li>
+                <li><a href="empleados.php" class="active">Ver Empleados</a></li>
+                <li><a href="trabajoinconclusos.php">Ver trabajos inconclusos</a></li>
+                <li><a href="agregarEmpleados.php">Agregar Empleado</a></li>
+                <li><a href="agregarM.php">Agregar trabajo inconclusos</a></li>
+            </ul>
+        </nav>
+
+        <main>
+            <?php
+            require_once 'config/database.php';
+            
+            $message = '';
+            $messageType = '';
+            
+            // Procesar eliminación si se solicita
+            if (isset($_GET['eliminar'])) {
+                $id = intval($_GET['eliminar']);
+                
+                try {
+                    $pdo = getConnection();
+                    $sql = "DELETE FROM empleados WHERE id = :id";
+                    $stmt = $pdo->prepare($sql);
+                    $result = $stmt->execute([':id' => $id]);
+                    
+                    if ($result && $stmt->rowCount() > 0) {
+                        $message = '✅ Empleados eliminado exitosamente.';
+                        $messageType = 'success';
+                    } else {
+                        $message = '⚠️ No se encontró el empleado a eliminar.';
+                        $messageType = 'warning';
+                    }
+                } catch (PDOException $e) {
+                    $message = '❌ Error al eliminar empleado: ' . $e->getMessage();
+                    $messageType = 'error';
+                }
+            }
+            
+            // Obtener término de búsqueda
+            $buscar = trim($_GET['buscar'] ?? '');
+            
+            // Mostrar mensaje si existe
+            if (!empty($message)) {
+                echo "<div class='alert $messageType'>$message</div>";
+            }
+            ?>
+
+            <div class="users-section">
+                <div class="section-header">
+                    <h2>👥 Lista de Empleados</h2>
+                    <a href="agregarEmpleados.php" class="btn primary">
+                        <span>➕</span> Nuevo empleado
+                    </a>
+                </div>
+
+                <!-- Formulario de búsqueda -->
+                <div class="search-section">
+                    <form method="GET" action="empleados.php" class="search-form">
+                        <input 
+                            type="text" 
+                            name="buscar" 
+                            placeholder="Buscar por nombre o apellido..." 
+                            value="<?php echo htmlspecialchars($buscar); ?>"
+                            class="search-input"
+                        >
+                        <button type="submit" class="btn secondary">
+                            <span>🔍</span> Buscar
+                        </button>
+                        <?php if (!empty($buscar)): ?>
+                            <a href="empleados.php" class="btn outline">
+                                <span>✖️</span> Limpiar
+                            </a>
+                        <?php endif; ?>
+                    </form>
+                </div>
+
+                <?php
+                try {
+                    $pdo = getConnection();
+                    
+                    // Construir consulta con o sin búsqueda
+                    if (!empty($buscar)) {
+                        $sql = "SELECT * FROM empleados WHERE nombre LIKE :buscar OR apellido LIKE :buscar ORDER BY fecha_registro DESC";
+                        $stmt = $pdo->prepare($sql);
+                        $stmt->execute([':buscar' => "%$buscar%"]);
+                        echo "<p class='search-info'>🔍 Resultados para: <strong>" . htmlspecialchars($buscar) . "</strong></p>";
+                    } else {
+                        $sql = "SELECT * FROM empleados ORDER BY fecha_registro DESC";
+                        $stmt = $pdo->prepare($sql);
+                        $stmt->execute();
+                    }
+                    
+                    $empleados = $stmt->fetchAll();
+                    $totalEmpleados = count($empleados);
+                    
+                    if ($totalEmpleados > 0) {
+                        echo "<p class='users-count'>📊 Total de Empleados: <strong>$totalEmpleados</strong></p>";
+                        
+                        echo "<div class='table-responsive'>";
+                        echo "<table class='users-table'>";
+                        echo "<thead>";
+                        echo "<tr>";
+                        echo "<th>ID</th>";
+                        echo "<th>Nombre</th>";
+                        echo "<th>Telefono</th>";
+                        echo "<th>Fecha Registro</th>";
+                        echo "<th>Acciones</th>";
+                        echo "</tr>";
+                        echo "</thead>";
+                        echo "<tbody>";
+                        
+                        foreach ($empleados as $empleado) {
+                            $fechaFormateada = date('d/m/Y H:i', strtotime($empleado['fecha_registro']));
+                            echo "<tr>";
+                            echo "<td>" . htmlspecialchars($empleado['id']) . "</td>";
+                            echo "<td>" . htmlspecialchars($empleado['nombre']) . "</td>";
+                            echo "<td>" . htmlspecialchars($empleado['apellido']) . "</td>";
+                            echo "<td>" . htmlspecialchars($empleado['telefonoe']) . "</td>";
+                            echo "<td>" . $fechaFormateada . "</td>";
+                            echo "<td class='actions'>";
+                            echo "<a href='empleados.php?eliminar=" . $empleado['id'] . "' ";
+                            echo "class='btn danger btn-small' ";
+                            echo "onclick='return confirm(\"¿Estás seguro de eliminar a " . htmlspecialchars($empleado['nombre']) . "?\");'>";
+                            echo "<span>🗑️</span> Eliminar";
+                            echo "</a>";
+                            echo "</td>";
+                            echo "</tr>";
+                        }
+                        
+                        echo "</tbody>";
+                        echo "</table>";
+                        echo "</div>";
+                    } else {
+                        if (!empty($buscar)) {
+                            echo "<div class='empty-state'>";
+                            echo "<div class='empty-icon'>🔍</div>";
+                            echo "<h3>No se encontraron resultados</h3>";
+                            echo "<p>No hay empleados que coincidan con '<strong>" . htmlspecialchars($buscar) . "</strong>'</p>";
+                            echo "<a href='empleados.php' class='btn secondary'>Ver todos los empleados</a>";
+                            echo "</div>";
+                        } else {
+                            echo "<div class='empty-state'>";
+                            echo "<div class='empty-icon'>👥</div>";
+                            echo "<h3>No hay empleados registrados</h3>";
+                            echo "<p>Comienza agregando tu primer empleado</p>";
+                            echo "<a href='agregarEmpleados.php' class='btn primary'>Agregar primer empleado</a>";
+                            echo "</div>";
+                        }
+                    }
+                    
+                } catch (PDOException $e) {
+                    echo "<div class='alert error'>";
+                    echo "<h3>❌ Error de base de datos:</h3>";
+                    echo "<p>" . htmlspecialchars($e->getMessage()) . "</p>";
+                    echo "</div>";
+                }
+                ?>
+            </div>
+        </main>
+
+        <footer>
+            <p>&copy; Desde 2025 hasta el dia de hoy. </p>
+        </footer>
+    </div>
+
+    <script>
+        // Confirmar eliminación con JavaScript
+        function confirmarEliminacion(nombre, id) {
+            if (confirm('¿Estás seguro de eliminar a ' + nombre + '?')) {
+                window.location.href = 'empleados.php?eliminar=' + id;
+            }
+        }
+    </script>
+</body>
+</html>
